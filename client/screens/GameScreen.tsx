@@ -429,6 +429,7 @@ export default function GameScreen() {
         timeUsed: gameState.elapsedTime,
         targetNumber: level.targetNumber,
       });
+      // Small delay to let the user see the correct guess in the history
       setTimeout(() => setShowCompleteModal(true), 600);
     } else if (gameState.currentGuesses.length + 1 >= level.maxAttempts) {
       setLastResult({
@@ -438,6 +439,7 @@ export default function GameScreen() {
         timeUsed: gameState.elapsedTime,
         targetNumber: level.targetNumber,
       });
+      // Small delay to let the user see the last guess in the history
       setTimeout(() => setShowCompleteModal(true), 600);
     }
   };

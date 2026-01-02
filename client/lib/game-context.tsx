@@ -174,16 +174,32 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   
   const continueGame = useCallback(() => {
     if (gameState.currentLevel && !gameState.isPlaying) {
-      setGameState(prev => ({
-        ...prev,
-        isPlaying: true,
-        isPaused: false,
-        startTime: Date.now() - prev.elapsedTime * 1000,
-      }));
+      const won = gameState.currentGuesses.some(g => g.feedback === "correct");
+      if (won) {
+        // Move to next level
+        const nextLevel = generateLevel(currentLevelNumber + 1, skillMetrics);
+        setCurrentLevelNumber(prev => prev + 1);
+        setGameState({
+          currentLevel: nextLevel,
+          currentGuesses: [],
+          isPlaying: true,
+          isPaused: false,
+          startTime: Date.now(),
+          elapsedTime: 0,
+        });
+      } else {
+        // Resume current level if it wasn't a loss (e.g. from main menu)
+        setGameState(prev => ({
+          ...prev,
+          isPlaying: true,
+          isPaused: false,
+          startTime: Date.now() - prev.elapsedTime * 1000,
+        }));
+      }
     } else if (!gameState.currentLevel) {
       startNewGame();
     }
-  }, [gameState.currentLevel, gameState.isPlaying, startNewGame]);
+  }, [gameState, currentLevelNumber, skillMetrics, startNewGame]);
   
   const completeLevel = useCallback((won: boolean) => {
     if (!gameState.currentLevel) return;
@@ -218,20 +234,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (won) {
       triggerHaptic("success");
       const nextLevel = generateLevel(currentLevelNumber + 1, newMetrics);
-      setCurrentLevelNumber(prev => prev + 1);
+      // We don't increment level number or change level yet, 
+      // the screen will call continueGame() which will handle it
       setGameState(prev => ({
         ...prev,
-        currentLevel: nextLevel,
-        currentGuesses: [],
         isPlaying: false,
         startTime: null,
-        elapsedTime: 0,
       }));
     } else {
       triggerHaptic("error");
       setGameState(prev => ({
         ...prev,
         isPlaying: false,
+        startTime: null,
       }));
     }
   }, [gameState, currentLevelNumber, levelHistory, playerStats, triggerHaptic]);
