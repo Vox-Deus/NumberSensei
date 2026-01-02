@@ -6,6 +6,7 @@ export const GameModeColors = {
   depth: "#8B4513",
   strategic: "#FFD700",
   tactical: "#FF6B6B",
+  deus: "#A855F7",
 } as const;
 
 // Semantic colors
