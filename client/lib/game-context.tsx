@@ -80,32 +80,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
-  // Load data on mount
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [stats, metrics, history, prof, levelNum] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.STATS),
-          AsyncStorage.getItem(STORAGE_KEYS.METRICS),
-          AsyncStorage.getItem(STORAGE_KEYS.HISTORY),
-          AsyncStorage.getItem(STORAGE_KEYS.PROFILE),
-          AsyncStorage.getItem(STORAGE_KEYS.LEVEL_NUMBER),
-        ]);
-
-        if (stats) setPlayerStats(JSON.parse(stats));
-        if (metrics) setSkillMetrics(JSON.parse(metrics));
-        if (history) setLevelHistory(JSON.parse(history));
-        if (prof) setProfile(JSON.parse(prof));
-        if (levelNum) setCurrentLevelNumber(parseInt(levelNum, 10));
-      } catch (error) {
-        console.error("Failed to load game data", error);
-      } finally {
-        setIsLoaded(true);
-      }
-    };
-    loadData();
-  }, []);
-
   // Save data when it changes
   useEffect(() => {
     if (!isLoaded) return;
@@ -118,12 +92,56 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile)),
           AsyncStorage.setItem(STORAGE_KEYS.LEVEL_NUMBER, currentLevelNumber.toString()),
         ]);
+        
+        // If there's an active level, save its state too
+        if (gameState.currentLevel) {
+          await AsyncStorage.setItem("brain_cubes_saved_game_state", JSON.stringify(gameState));
+        } else {
+          await AsyncStorage.removeItem("brain_cubes_saved_game_state");
+        }
       } catch (error) {
         console.error("Failed to save game data", error);
       }
     };
     saveData();
-  }, [playerStats, skillMetrics, levelHistory, profile, currentLevelNumber, isLoaded]);
+  }, [playerStats, skillMetrics, levelHistory, profile, currentLevelNumber, isLoaded, gameState]);
+
+  // Load data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [stats, metrics, history, prof, levelNum, savedState] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEYS.STATS),
+          AsyncStorage.getItem(STORAGE_KEYS.METRICS),
+          AsyncStorage.getItem(STORAGE_KEYS.HISTORY),
+          AsyncStorage.getItem(STORAGE_KEYS.PROFILE),
+          AsyncStorage.getItem(STORAGE_KEYS.LEVEL_NUMBER),
+          AsyncStorage.getItem("brain_cubes_saved_game_state"),
+        ]);
+
+        if (stats) setPlayerStats(JSON.parse(stats));
+        if (metrics) setSkillMetrics(JSON.parse(metrics));
+        if (history) setLevelHistory(JSON.parse(history));
+        if (prof) setProfile(JSON.parse(prof));
+        if (levelNum) setCurrentLevelNumber(parseInt(levelNum, 10));
+        
+        if (savedState) {
+          const parsedState = JSON.parse(savedState);
+          // Only restore if it was actually playing or paused
+          setGameState({
+            ...parsedState,
+            isPlaying: false, // Start as not playing so user has to "Continue"
+            isPaused: false,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load game data", error);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+    loadData();
+  }, []);
 
   useEffect(() => {
     if (gameState.isPlaying && !gameState.isPaused && gameState.startTime) {
