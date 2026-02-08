@@ -85,19 +85,30 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (!isLoaded) return;
     const saveData = async () => {
       try {
-        await Promise.all([
-          AsyncStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(playerStats)),
-          AsyncStorage.setItem(STORAGE_KEYS.METRICS, JSON.stringify(skillMetrics)),
-          AsyncStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(levelHistory)),
-          AsyncStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile)),
-          AsyncStorage.setItem(STORAGE_KEYS.LEVEL_NUMBER, currentLevelNumber.toString()),
+        const statsStr = JSON.stringify(playerStats);
+        const metricsStr = JSON.stringify(skillMetrics);
+        const historyStr = JSON.stringify(levelHistory);
+        const profileStr = JSON.stringify(profile);
+        const levelNumStr = currentLevelNumber.toString();
+        const gameStateStr = gameState.currentLevel ? JSON.stringify(gameState) : null;
+
+        await AsyncStorage.multiSet([
+          [STORAGE_KEYS.STATS, statsStr],
+          [STORAGE_KEYS.METRICS, metricsStr],
+          [STORAGE_KEYS.HISTORY, historyStr],
+          [STORAGE_KEYS.PROFILE, profileStr],
+          [STORAGE_KEYS.LEVEL_NUMBER, levelNumStr],
         ]);
         
-        // If there's an active level, save its state too
-        if (gameState.currentLevel) {
-          await AsyncStorage.setItem("brain_cubes_saved_game_state", JSON.stringify(gameState));
+        if (gameStateStr) {
+          await AsyncStorage.setItem("brain_cubes_saved_game_state", gameStateStr);
         } else {
           await AsyncStorage.removeItem("brain_cubes_saved_game_state");
+        }
+        
+        // Mobile flush
+        if (typeof AsyncStorage.flushGetRequests === 'function') {
+          AsyncStorage.flushGetRequests();
         }
       } catch (error) {
         console.error("Failed to save game data", error);
@@ -192,32 +203,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   
   const continueGame = useCallback(() => {
     if (gameState.currentLevel && !gameState.isPlaying) {
-      const won = gameState.currentGuesses.some(g => g.feedback === "correct");
-      if (won) {
-        // Move to next level
-        const nextLevel = generateLevel(currentLevelNumber + 1, skillMetrics);
-        setCurrentLevelNumber(prev => prev + 1);
-        setGameState({
-          currentLevel: nextLevel,
-          currentGuesses: [],
-          isPlaying: true,
-          isPaused: false,
-          startTime: Date.now(),
-          elapsedTime: 0,
-        });
-      } else {
-        // Resume current level if it wasn't a loss (e.g. from main menu)
-        setGameState(prev => ({
-          ...prev,
-          isPlaying: true,
-          isPaused: false,
-          startTime: Date.now() - prev.elapsedTime * 1000,
-        }));
-      }
+      setGameState(prev => ({
+        ...prev,
+        isPlaying: true,
+        isPaused: false,
+        startTime: Date.now() - prev.elapsedTime * 1000,
+      }));
     } else if (!gameState.currentLevel) {
       startNewGame();
     }
-  }, [gameState, currentLevelNumber, skillMetrics, startNewGame]);
+  }, [gameState.currentLevel, gameState.isPlaying, startNewGame]);
   
   const completeLevel = useCallback((won: boolean) => {
     if (!gameState.currentLevel) return;
@@ -252,12 +247,18 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (won) {
       triggerHaptic("success");
       const nextLevel = generateLevel(currentLevelNumber + 1, newMetrics);
-      // We don't increment level number or change level yet, 
-      // the screen will call continueGame() which will handle it
+      // Explicitly increment level number and update state for immediate persistence
+      setCurrentLevelNumber(prev => {
+        const next = prev + 1;
+        return next;
+      });
       setGameState(prev => ({
         ...prev,
+        currentLevel: nextLevel,
+        currentGuesses: [],
         isPlaying: false,
         startTime: null,
+        elapsedTime: 0,
       }));
     } else {
       triggerHaptic("error");
