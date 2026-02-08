@@ -360,18 +360,28 @@ export default function GameScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      // If we're not playing and have a level, check for win/loss
       if (!gameState.isPlaying && gameState.currentLevel && !showCompleteModal) {
-        const won = gameState.currentGuesses.some((g) => g.feedback === "correct");
-        setLastResult({
-          won,
-          attemptsUsed: gameState.currentGuesses.length,
-          maxAttempts: gameState.currentLevel.maxAttempts,
-          timeUsed: gameState.elapsedTime,
-          targetNumber: gameState.currentLevel.targetNumber,
-        });
-        setShowCompleteModal(true);
+        // If we have guesses, check the last one for victory
+        // Note: The game-context might have already cleared currentGuesses if it moved to next level
+        // but we want to show the result of the level just completed.
+        // We use the results stored during handleSubmit if available.
+        if (lastResult) {
+          setShowCompleteModal(true);
+        } else {
+          // Fallback logic if lastResult is null
+          const won = gameState.currentGuesses.some((g) => g.feedback === "correct");
+          setLastResult({
+            won,
+            attemptsUsed: gameState.currentGuesses.length,
+            maxAttempts: gameState.currentLevel.maxAttempts,
+            timeUsed: gameState.elapsedTime,
+            targetNumber: gameState.currentLevel.targetNumber,
+          });
+          setShowCompleteModal(true);
+        }
       }
-    }, [gameState.isPlaying, gameState.currentLevel, showCompleteModal])
+    }, [gameState.isPlaying, gameState.currentLevel, showCompleteModal, lastResult])
   );
 
   useEffect(() => {
